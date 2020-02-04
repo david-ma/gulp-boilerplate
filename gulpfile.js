@@ -10,6 +10,7 @@ var settings = {
 	styles: true,
 	svgs: true,
 	copy: true,
+	typescript: true,
 	reload: true
 };
 
@@ -44,6 +45,7 @@ var banner = {
 var fs = require('fs');
 var readlineSync = require('readline-sync');
 var argv = require('yargs').argv;
+var babel = require('gulp-babel');
 
 
 // General
@@ -114,7 +116,7 @@ var getWorkEnv = function (done) {
             input: workspace+'/src/',
             output: workspace+'/dist/',
             scripts: {
-                input: workspace+'/src/js/*',
+                input: workspace+'/src/js/*.js',
                 polyfills: '.polyfill.js',
                 output: workspace+'/dist/js/'
             },
@@ -130,9 +132,13 @@ var getWorkEnv = function (done) {
                 input: workspace+'/src/copy/**/*',
                 output: workspace+'/dist/'
             },
+            typescript: {
+                input: workspace+'/src/**/*.ts',
+                output: workspace+'/dist/'
+            },
             reload: './'+workspace+'/dist/'
         };
-    
+
         jsTasks = lazypipe()
             .pipe(header, banner.main, {package: package})
             .pipe(optimizejs)
@@ -172,21 +178,6 @@ var promptForSite = function () {
 }
 
 
-exports.test = series(getWorkEnv);
-
-
-var readline = function(done) {
-    var userName = readlineSync.question('May I have your name? ');
-    console.log('Hi ' + userName + '!');
-
-    return done();
-}
-
-
-exports.prompt = series(readline);
-
-
-
 
 
 // Remove pre-existing content from output folders
@@ -206,6 +197,8 @@ var cleanDist = function (done) {
 };
 
 
+
+// Can we use babel for this stuff..?
 // Lint, minify, and concatenate scripts
 var buildScripts = function (done) {
 
@@ -310,6 +303,28 @@ var buildSVGs = function (done) {
 
 };
 
+
+
+
+// babel typescript stuff..???
+var typescript = function (done) {
+    if (!typescript) return done();
+
+    return src(paths.typescript.input)
+        .pipe(babel({
+//             presets: ['@babel/env']
+            "plugins": ["@babel/plugin-transform-typescript"]
+        }))
+        .pipe(dest(paths.typescript.output));
+};
+
+
+
+
+
+
+
+
 // Copy static files into output folder
 var copyFiles = function (done) {
 
@@ -362,6 +377,7 @@ var build = parallel(
 		lintScripts,
 		buildStyles,
 		buildSVGs,
+		typescript,
 		copyFiles
 	);
 
