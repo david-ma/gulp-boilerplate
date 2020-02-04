@@ -6,40 +6,19 @@
 var settings = {
 	clean: true,
 	scripts: true,
-	polyfills: false,
+	polyfills: true,
 	styles: true,
-	svgs: false,
+	svgs: true,
 	copy: true,
 	reload: true
 };
 
 
-/**
- * Paths to project folders
- */
-
-var paths = {
-	input: 'src/',
-	output: 'dist/',
-	scripts: {
-		input: 'src/js/*',
-		polyfills: '.polyfill.js',
-		output: 'dist/js/'
-	},
-	styles: {
-		input: 'src/sass/**/*.{scss,sass}',
-		output: 'dist/css/'
-	},
-	svgs: {
-		input: 'src/svg/*.svg',
-		output: 'dist/svg/'
-	},
-	copy: {
-		input: 'src/copy/**/*',
-		output: 'dist/'
-	},
-	reload: './dist/'
-};
+var websites = null; // Websites available
+var site = null; // Name of the website
+var workspace = null; // Folder of the workspace
+var jsTasks = null; // Repeated JavaScript tasks
+var paths = null; // Paths related to workspace
 
 
 /**
@@ -61,9 +40,11 @@ var banner = {
  * Gulp Packages
  */
 
-// David
+// David's additions
 var fs = require('fs');
 var readlineSync = require('readline-sync');
+var argv = require('yargs').argv;
+
 
 // General
 var {gulp, src, dest, watch, series, parallel} = require('gulp');
@@ -94,46 +75,82 @@ var svgmin = require('gulp-svgmin');
 var browserSync = require('browser-sync');
 
 
+
 /**
  * Gulp Tasks
  */
 
-
-var argv = require('yargs').argv;
-var site = null;
-var workspace = null;
-
-
-
-
 var getWorkEnv = function (done) {
-    const websites = fs.readdirSync('./websites')
-                        .filter( site => site.indexOf(".") == -1 );
-
-    if (argv.s === true || argv.site === true) {
-        console.log("When using -s or --site, you must specify which site you're using.");
-        process.exit(0);
-    } else if (argv.s || argv.site) {
-        var site = argv.s || argv.site;
-        if ( websites.indexOf(site) == -1 ) {
-            console.log(`Website '${site}' does not exist.`);
-            console.log("Please use one of the following: " + websites.join(", "));
-            process.exit(0);
-        }
+    if (site) { 
+        return done();
     } else {
-        setWorkEnv(done);
+
+        websites = fs.readdirSync('./websites')
+                     .filter( site => site.indexOf(".") == -1 );
+
+        if (argv.s === true || argv.site === true) {
+            console.log("When using -s or --site, you must specify which site you're using.");
+            process.exit(0);
+        } else if (argv.s || argv.site) {
+            site = argv.s || argv.site;
+            if ( websites.indexOf(site) == -1 ) {
+                console.log(`Website '${site}' does not exist.`);
+                console.log("Please use one of the following: " + websites.join(", "));
+                process.exit(0);
+            }
+        } else {
+            site = promptForSite();
+        }
+
+        workspace = "websites/"+site;
+        console.log(`Ok, setting workspace to: ${workspace}`);
+
+
+        /**
+         * Paths to project folders
+         */
+
+        paths = {
+            input: workspace+'/src/',
+            output: workspace+'/dist/',
+            scripts: {
+                input: workspace+'/src/js/*',
+                polyfills: '.polyfill.js',
+                output: workspace+'/dist/js/'
+            },
+            styles: {
+                input: workspace+'/src/sass/**/*.{scss,sass}',
+                output: workspace+'/dist/css/'
+            },
+            svgs: {
+                input: workspace+'/src/svg/*.svg',
+                output: workspace+'/dist/svg/'
+            },
+            copy: {
+                input: workspace+'/src/copy/**/*',
+                output: workspace+'/dist/'
+            },
+            reload: './'+workspace+'/dist/'
+        };
+    
+        jsTasks = lazypipe()
+            .pipe(header, banner.main, {package: package})
+            .pipe(optimizejs)
+            .pipe(dest, paths.scripts.output)
+            .pipe(rename, {suffix: '.min'})
+            .pipe(uglify)
+            .pipe(optimizejs)
+            .pipe(header, banner.main, {package: package})
+            .pipe(dest, paths.scripts.output);
+
+        return done();
     }
-
-    workspace = "websites/"+site;
-    console.log(`Ok, setting workspace to: ${workspace}`);
-
-    return done();
 }
 
 
 
-var setWorkEnv = function (done) {
-    var websites = fs.readdirSync('./websites');
+var promptForSite = function () {
+    websites = fs.readdirSync('./websites');
     websites = websites.filter( site => site.indexOf(".") == -1 );
 
     console.log("Here are the websites:");
@@ -141,7 +158,7 @@ var setWorkEnv = function (done) {
         console.log(`${i}) ${site}`);
     });
 
-    var site = readlineSync.question('Which site do you want to work on? ');
+    site = readlineSync.question('Which site do you want to work on? ');
 
     if (websites.indexOf(site) >= 0) {
 
@@ -151,7 +168,7 @@ var setWorkEnv = function (done) {
         site = 'default';
     }
 
-    return done();
+    return site;
 }
 
 
@@ -188,16 +205,6 @@ var cleanDist = function (done) {
 
 };
 
-// Repeated JavaScript tasks
-var jsTasks = lazypipe()
-	.pipe(header, banner.main, {package: package})
-	.pipe(optimizejs)
-	.pipe(dest, paths.scripts.output)
-	.pipe(rename, {suffix: '.min'})
-	.pipe(uglify)
-	.pipe(optimizejs)
-	.pipe(header, banner.main, {package: package})
-	.pipe(dest, paths.scripts.output);
 
 // Lint, minify, and concatenate scripts
 var buildScripts = function (done) {
@@ -342,7 +349,7 @@ var reloadBrowser = function (done) {
 
 // Watch for changes
 var watchSource = function (done) {
-	watch(paths.input, series(exports.default, reloadBrowser));
+	watch(paths.input, series(build, reloadBrowser));
 	done();
 };
 
@@ -350,18 +357,19 @@ var watchSource = function (done) {
 /**
  * Export Tasks
  */
-
-// Default task
-// gulp
-exports.default = series(
-	cleanDist,
-	parallel(
+var build = parallel(
 		buildScripts,
 		lintScripts,
 		buildStyles,
 		buildSVGs,
 		copyFiles
-	)
+	);
+
+// Default task
+exports.default = series(
+    getWorkEnv,
+	cleanDist,
+	build
 );
 
 // Watch and reload
@@ -371,3 +379,11 @@ exports.watch = series(
 	startServer,
 	watchSource
 );
+
+
+
+
+
+
+
+

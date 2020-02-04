@@ -1,16 +1,16 @@
 {
-	"name": "project-name",
-	"version": "0.0.1",
-	"description": "A description for your project.",
-	"main": "./dist/your-main-js-file.js",
+	"name": "Thalia",
+	"version": "3.0.0",
+	"description": "Frostickle's server.",
+	"main": "./index.js",
 	"author": {
-		"name": "YOUR NAME",
-		"url": "http://link-to-your-website.com"
+		"name": "David Ma",
+		"url": "https://david-ma.net"
 	},
-	"license": "MIT",
+	"license": "GPL-3.0",
 	"repository": {
 		"type": "git",
-		"url": "http://link-to-your-git-repo.com"
+		"url": "https://github.com/david-ma/Thalia"
 	},
 	"boilerplate": {
 		"version": "2.2.6",
