@@ -6,9 +6,9 @@
 var settings = {
 	clean: true,
 	scripts: true,
-	polyfills: true,
+	polyfills: false,
 	styles: true,
-	svgs: true,
+	svgs: false,
 	copy: true,
 	reload: true
 };
@@ -61,6 +61,10 @@ var banner = {
  * Gulp Packages
  */
 
+// David
+var fs = require('fs');
+var readlineSync = require('readline-sync');
+
 // General
 var {gulp, src, dest, watch, series, parallel} = require('gulp');
 var del = require('del');
@@ -93,6 +97,80 @@ var browserSync = require('browser-sync');
 /**
  * Gulp Tasks
  */
+
+
+var argv = require('yargs').argv;
+var site = null;
+var workspace = null;
+
+
+
+
+var getWorkEnv = function (done) {
+    const websites = fs.readdirSync('./websites')
+                        .filter( site => site.indexOf(".") == -1 );
+
+    if (argv.s === true || argv.site === true) {
+        console.log("When using -s or --site, you must specify which site you're using.");
+        process.exit(0);
+    } else if (argv.s || argv.site) {
+        var site = argv.s || argv.site;
+        if ( websites.indexOf(site) == -1 ) {
+            console.log(`Website '${site}' does not exist.`);
+            console.log("Please use one of the following: " + websites.join(", "));
+            process.exit(0);
+        }
+    } else {
+        setWorkEnv(done);
+    }
+
+    workspace = "websites/"+site;
+    console.log(`Ok, setting workspace to: ${workspace}`);
+
+    return done();
+}
+
+
+
+var setWorkEnv = function (done) {
+    var websites = fs.readdirSync('./websites');
+    websites = websites.filter( site => site.indexOf(".") == -1 );
+
+    console.log("Here are the websites:");
+    websites.forEach(function(site, i){
+        console.log(`${i}) ${site}`);
+    });
+
+    var site = readlineSync.question('Which site do you want to work on? ');
+
+    if (websites.indexOf(site) >= 0) {
+
+    } else if (websites[site] != undefined) {
+        site = websites[site];
+    } else {
+        site = 'default';
+    }
+
+    return done();
+}
+
+
+exports.test = series(getWorkEnv);
+
+
+var readline = function(done) {
+    var userName = readlineSync.question('May I have your name? ');
+    console.log('Hi ' + userName + '!');
+
+    return done();
+}
+
+
+exports.prompt = series(readline);
+
+
+
+
 
 // Remove pre-existing content from output folders
 var cleanDist = function (done) {
