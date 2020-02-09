@@ -15,7 +15,14 @@ var settings = {
 };
 
 
-var websites = null; // Websites available
+// David's additions
+var fs = require('fs');
+var readlineSync = require('readline-sync');
+var argv = require('yargs').argv;
+var babel = require('gulp-babel');
+
+var websites = fs.readdirSync('./websites').filter( site => site.indexOf(".") == -1 ); // Websites available
+
 var site = null; // Name of the website
 var workspace = null; // Folder of the workspace
 var jsTasks = null; // Repeated JavaScript tasks
@@ -40,12 +47,6 @@ var banner = {
 /**
  * Gulp Packages
  */
-
-// David's additions
-var fs = require('fs');
-var readlineSync = require('readline-sync');
-var argv = require('yargs').argv;
-var babel = require('gulp-babel');
 
 
 // General
@@ -76,19 +77,64 @@ var svgmin = require('gulp-svgmin');
 // BrowserSync
 var browserSync = require('browser-sync');
 
+var staticSrc = "src/**/*.{html,txt,eot,ttf,woff,woff2,otf,json,pdf,ico,xml,js,css,csv,tsv,png,jpg,jpeg}";
 
 
 /**
  * Gulp Tasks
  */
+ 
+function setSite(website){
+    site = website;
+    workspace = "websites/"+site;
+    console.log(`Setting workspace to: ${workspace}`);
+
+    /**
+     * Paths to project folders
+     */
+
+    paths = {
+        input: workspace+'/src/',
+        output: workspace+'/dist/',
+        scripts: {
+            input: workspace+'/src/**/*.js',
+            polyfills: '.polyfill.js',
+            output: workspace+'/dist/'
+        },
+        styles: {
+            input: workspace+'/src/**/*.{scss,sass}',
+            output: workspace+'/dist/'
+        },
+        svgs: {
+            input: workspace+'/src/**/*.svg',
+            output: workspace+'/dist/'
+        },
+        copy: {
+            input: workspace+'/'+staticSrc,
+            output: workspace+'/dist/'
+        },
+        typescript: {
+            input: workspace+'/src/**/*.ts',
+            output: workspace+'/dist/'
+        },
+        reload: './'+workspace+'/dist/'
+    };
+
+    jsTasks = lazypipe()
+        .pipe(header, banner.main, {package: package})
+        .pipe(optimizejs)
+        .pipe(dest, paths.scripts.output)
+        .pipe(rename, {suffix: '.min'})
+        .pipe(uglify)
+        .pipe(optimizejs)
+        .pipe(header, banner.main, {package: package})
+        .pipe(dest, paths.scripts.output);
+}
 
 var getWorkEnv = function (done) {
     if (site) { 
         return done();
     } else {
-
-        websites = fs.readdirSync('./websites')
-                     .filter( site => site.indexOf(".") == -1 );
 
         if (argv.s === true || argv.site === true) {
             console.log("When using -s or --site, you must specify which site you're using.");
@@ -103,51 +149,8 @@ var getWorkEnv = function (done) {
         } else {
             site = promptForSite();
         }
-
-        workspace = "websites/"+site;
-        console.log(`Ok, setting workspace to: ${workspace}`);
-
-
-        /**
-         * Paths to project folders
-         */
-
-        paths = {
-            input: workspace+'/src/',
-            output: workspace+'/dist/',
-            scripts: {
-                input: workspace+'/src/js/*.js',
-                polyfills: '.polyfill.js',
-                output: workspace+'/dist/js/'
-            },
-            styles: {
-                input: workspace+'/src/sass/**/*.{scss,sass}',
-                output: workspace+'/dist/css/'
-            },
-            svgs: {
-                input: workspace+'/src/svg/*.svg',
-                output: workspace+'/dist/svg/'
-            },
-            copy: {
-                input: workspace+'/src/copy/**/*',
-                output: workspace+'/dist/'
-            },
-            typescript: {
-                input: workspace+'/src/**/*.ts',
-                output: workspace+'/dist/'
-            },
-            reload: './'+workspace+'/dist/'
-        };
-
-        jsTasks = lazypipe()
-            .pipe(header, banner.main, {package: package})
-            .pipe(optimizejs)
-            .pipe(dest, paths.scripts.output)
-            .pipe(rename, {suffix: '.min'})
-            .pipe(uglify)
-            .pipe(optimizejs)
-            .pipe(header, banner.main, {package: package})
-            .pipe(dest, paths.scripts.output);
+        
+        setSite(site);
 
         return done();
     }
@@ -182,6 +185,7 @@ var promptForSite = function () {
 
 // Remove pre-existing content from output folders
 var cleanDist = function (done) {
+    console.log(`Cleaning ${site}`);
 
 	// Make sure this feature is activated before running
 	if (!settings.clean) return done();
@@ -381,12 +385,35 @@ var build = parallel(
 		copyFiles
 	);
 
+var buildSequence = series(
+        setSite, cleanDist, build
+    );
+
 // Default task
 exports.default = series(
     getWorkEnv,
 	cleanDist,
 	build
 );
+
+
+exports.buildAll = function(done) {
+    const tasks = websites.map(website => {
+    return function buildSite(taskDone) {
+            setSite(website);
+            series(cleanDist, build)(taskDone);
+        }
+    });
+
+    return series(...tasks)(done);
+
+// In case you want to do something after doing everything
+//   return series(...tasks, (seriesDone) => {
+//     seriesDone();
+//     done();
+//   })();
+}
+
 
 // Watch and reload
 // gulp watch
