@@ -185,8 +185,6 @@ var promptForSite = function () {
 
 // Remove pre-existing content from output folders
 var cleanDist = function (done) {
-    console.log(`Cleaning ${site}`);
-
 	// Make sure this feature is activated before running
 	if (!settings.clean) return done();
 
@@ -390,7 +388,7 @@ var buildSequence = series(
     );
 
 // Default task
-exports.default = series(
+exports.default = exports.build = series(
     getWorkEnv,
 	cleanDist,
 	build
